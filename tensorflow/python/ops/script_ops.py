@@ -449,7 +449,17 @@ def eager_py_func(func, inp, Tout, name=None):
     A list of `Tensor` or a single `Tensor` which `func` computes; an empty list
     if `func` returns None.
   """
-  return _internal_py_func(func=func, inp=inp, Tout=Tout, eager=True, name=name)
+    def wrapped_func(*flat_inp):
+    reconstructed_inp = nest.pack_sequence_as(inp, flat_inp, expand_composites=True)
+    out = func(*reconstructed_inp)
+    return nest.flatten(out, expand_composites=True)
+
+  flat_Tout = nest.flatten(Tout, expand_composites=True)
+  flat_out = _internal_py_func(func=wrapped_func, inp=nest.flatten(inp, expand_composites=True),
+                              Tout=[_tensor_spec_to_dtype(v) for v in flat_Tout], name=name)
+  spec_out = nest.map_structure(_dtype_to_tensor_spec, Tout, expand_composites=True)
+  out = nest.pack_sequence_as(spec_out, flat_out, expand_composites=True)
+  return out
 
 
 def py_func_common(func, inp, Tout, stateful=True, name=None):
